@@ -1,0 +1,12 @@
+# Birthday Reminder — Python Dependencies
+# Install with:  pip install -r requirements.txt
+
+# Pipeline orchestration
+apache-airflow>=2.5.0
+
+# Data ingestion & transformation
+pandas>=1.5.0
+openpyxl>=3.0.10       # required by pandas to read .xlsx files
+
+# HTTP client (Telegram API, quotes API)
+requests>=2.28.0
