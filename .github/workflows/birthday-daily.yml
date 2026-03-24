@@ -1,0 +1,70 @@
+name: Birthday Check — Daily
+
+on:
+  schedule:
+    # 02:00 UTC = 09:00 WIB (UTC+7)
+    - cron: '0 2 * * *'
+
+  # Run manually from the Actions tab — useful for testing without waiting for 09:00
+  workflow_dispatch:
+
+jobs:
+  run-birthday-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install pandas openpyxl requests
+
+      - name: Run birthday check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 tests/test_birthday.py
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'EOF'
+          import urllib.request, json, os
+          token = os.environ.get('TELEGRAM_TOKEN', '')
+          chat  = os.environ.get('TELEGRAM_CHAT_ID', '')
+          url   = os.environ.get('RUN_URL', '')
+          if not token or not chat:
+              print("Telegram secrets not set — skipping failure alert.")
+              exit(0)
+          text = (
+              "❌ <b>Birthday Check GAGAL</b>\n\n"
+              "Pipeline harian gagal jalan di GitHub Actions.\n\n"
+              f'🔗 <a href="{url}">Lihat log</a>'
+          )
+          data = json.dumps({
+              'chat_id': chat,
+              'text': text,
+              'parse_mode': 'HTML',
+              'disable_web_page_preview': True,
+          }).encode()
+          req = urllib.request.Request(
+              f'https://api.telegram.org/bot{token}/sendMessage',
+              data=data,
+              headers={'Content-Type': 'application/json'},
+          )
+          try:
+              r = urllib.request.urlopen(req)
+              print('Failure alert sent:', r.status)
+          except Exception as e:
+              print('Could not send failure alert:', e)
+          EOF
